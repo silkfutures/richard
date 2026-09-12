@@ -1,0 +1,12 @@
+{
+  "name": "Nathan — Command Centre",
+  "short_name": "Command",
+  "description": "Projects, priorities and the next right action.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f2f3f5",
+  "theme_color": "#171b21",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
