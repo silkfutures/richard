@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node --import tsx scripts/migrate.ts && next build",
     "start": "next start",
     "test": "npm run build",
     "lint": "eslint . --ignore-pattern .next",
