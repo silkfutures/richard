@@ -5,6 +5,8 @@ export const projects = pgTable("projects", {
   name: text("name").notNull(),
   status: text("status").notNull().default("active"),
   outcome: text("outcome").notNull().default(""),
+  currentPhase: text("current_phase").notNull().default(""),
+  roadmap: text("roadmap").notNull().default(""),
   health: text("health").notNull().default("green"),
   priority: integer("priority").notNull().default(3),
   progress: integer("progress").notNull().default(0),

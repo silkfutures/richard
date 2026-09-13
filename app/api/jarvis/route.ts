@@ -5,7 +5,7 @@ import { getDb } from "../../../db";
 import { assistantMessages, notes, projects, tasks } from "../../../db/schema";
 
 const actionSchema = z.object({
-  type: z.enum(["add_task", "add_priority", "prioritise_task", "add_note", "draft_email", "calendar_event"]),
+  type: z.enum(["add_task", "add_priority", "prioritise_task", "complete_task", "add_note", "draft_email", "calendar_event"]),
   summary: z.string().min(1).max(180),
   projectId: z.string().nullable(),
   taskId: z.number().int().nullable(),
@@ -159,7 +159,7 @@ async function generateReply(message: string, context: Context, today: string, t
     projectId: task.projectId,
     completedAt: toIso(task.completedAt),
   }));
-  const recentNotes = context.noteRows.slice(0, 25).map((note) => ({ projectId: note.projectId, content: note.content, createdAt: toIso(note.createdAt) }));
+  const recentNotes = context.noteRows.slice(0, 50).map((note) => ({ projectId: note.projectId, content: note.content, createdAt: toIso(note.createdAt) }));
   const conversation = context.history.slice(-16).map((item) => ({ role: item.role, content: item.content, pendingAction: item.actionStatus === "pending" ? parseAction(item.actionJson || "") : null }));
 
   try {
@@ -167,9 +167,9 @@ async function generateReply(message: string, context: Context, today: string, t
       model: gateway("openai/gpt-6-astra-fast"),
       output: Output.object({ schema: answerSchema }),
       maxOutputTokens: 1100,
-      system: `You are Jarvis inside Nathan's private Command Centre. You are a calm, sharp personal chief of staff, not a generic productivity coach.
+      system: `You are Rich, short for Richard, inside Nathan's private Command Centre. You are a calm, sharp personal chief of staff, not a generic productivity coach.
 
-Ground every answer in the supplied projects, tasks, notes and history. Be concise, practical and use British English. Explain why a recommendation matters. Recommend no more than three actions at once. Never invent completed work, dates, email addresses, contacts, commitments or access to services.
+Ground every answer in the supplied project outcomes, current phases, roadmaps, tasks, notes and history. Be concise, practical and use British English. Explain why a recommendation matters. Recommend no more than three actions at once. Never invent completed work, dates, email addresses, contacts, commitments or access to services. When Nathan asks for the obvious next move, reason from the project's roadmap and what was most recently completed, then identify the smallest action that genuinely advances the current phase.
 
 You may answer questions without a proposal. When Nathan explicitly asks to change something, return exactly one proposal and ask for confirmation. The app will only execute it after Nathan says yes. Never say an action has happened before confirmation.
 
@@ -177,6 +177,7 @@ Available proposal types:
 - add_task: create a new open task in a project.
 - add_priority: create a new task directly in today's priority list.
 - prioritise_task: move an existing open task to today's priority list; use its real taskId.
+- complete_task: mark an existing open task complete; use its real taskId. If Nathan says he has done something that clearly matches an open task, offer this before treating it as established history.
 - add_note: save context to a project.
 - draft_email: write a complete email draft for review. This does not send it or read Gmail.
 - calendar_event: prepare an Apple Calendar event. Use local ISO values like YYYY-MM-DDTHH:mm. This does not silently add it; iOS gives final confirmation.
@@ -186,7 +187,7 @@ Only use exact project IDs from the supplied project list. If the project is gen
 Timezone: ${timezone}
 
 PROJECTS
-${JSON.stringify(context.projectRows.map((project) => ({ id: project.id, name: project.name, status: project.status, outcome: project.outcome, health: project.health, priority: project.priority, progress: project.progress })))}
+${JSON.stringify(context.projectRows.map((project) => ({ id: project.id, name: project.name, status: project.status, outcome: project.outcome, currentPhase: project.currentPhase, roadmap: project.roadmap, health: project.health, priority: project.priority, progress: project.progress })))}
 
 OPEN TASKS
 ${JSON.stringify(openTasks)}
@@ -286,7 +287,7 @@ function normaliseProposal(proposal: JarvisAction | null, context: Context) {
   if (requiresProject && (!proposal.projectId || !projectIds.has(proposal.projectId))) return null;
   if (proposal.projectId && !projectIds.has(proposal.projectId)) proposal = { ...proposal, projectId: null };
   if (["add_task", "add_priority", "add_note"].includes(proposal.type) && !proposal.title?.trim()) return null;
-  if (proposal.type === "prioritise_task" && (!proposal.taskId || !context.taskRows.some((task) => task.id === proposal.taskId && task.status === "open"))) return null;
+  if (["prioritise_task", "complete_task"].includes(proposal.type) && (!proposal.taskId || !context.taskRows.some((task) => task.id === proposal.taskId && task.status === "open"))) return null;
   if (proposal.type === "draft_email" && (!proposal.recipientName?.trim() || !proposal.subject?.trim() || !proposal.body?.trim())) return null;
   if (proposal.type === "calendar_event" && (!proposal.title?.trim() || !validLocalDateTime(proposal.start))) return null;
   return proposal;
@@ -302,6 +303,15 @@ async function executeAction(action: JarvisAction, today: string) {
     await db.update(tasks).set({ plannedFor: today }).where(eq(tasks.id, task.id));
     await db.update(projects).set({ lastTouched: new Date() }).where(eq(projects.id, task.projectId));
     return `Done — “${task.title}” is now on Today’s priority list.`;
+  }
+
+  if (action.type === "complete_task" && action.taskId) {
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, action.taskId)).limit(1);
+    if (!task || task.status !== "open") throw new Error("Task is unavailable");
+    const now = new Date();
+    await db.update(tasks).set({ status: "done", completedAt: now }).where(eq(tasks.id, task.id));
+    await db.update(projects).set({ lastTouched: now }).where(eq(projects.id, task.projectId));
+    return `Done — I marked “${task.title}” complete. I can now reassess the roadmap and recommend the strongest next move.`;
   }
 
   if ((action.type === "add_task" || action.type === "add_priority") && action.projectId && action.title) {

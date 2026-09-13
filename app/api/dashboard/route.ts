@@ -3,12 +3,12 @@ import { getDb } from "../../../db";
 import { notes, projects, tasks } from "../../../db/schema";
 
 const initialProjects = [
-  ["silkfutures", "Silkfutures", "active", "Build the strongest youth development engine in Cardiff", "green", 5, 72],
-  ["set-pace", "Set Pace", "active", "Restart the season around Love in Motion", "amber", 4, 48],
-  ["silkcrayon", "Silkcrayon", "maintain", "Keep the studio booked and operating cleanly", "green", 4, 61],
-  ["codex-iso", "Codex ISO", "building", "Launch the first collection of essential texts", "amber", 3, 28],
-  ["music", "Music", "maintain", "Create without turning the weekly challenge into a burden", "amber", 2, 22],
-  ["personal", "Personal", "active", "Build a stable home, body and financial base", "green", 4, 55],
+  ["silkfutures", "Silkfutures", "active", "Build the strongest youth development engine in Cardiff", "Silkfutures 2.0 and Alchemy relaunch", "Build a committed core through the 24-week Alchemy pathway, Benny-led Discovery Sessions and the five-stage progression model.", "green", 5, 72],
+  ["set-pace", "Set Pace", "active", "Restart the season around Love in Motion", "Rebuilding the season around Love in Motion", "Create a sustainable rhythm across juniors, adults and the run club, then strengthen the community through shared challenges and events.", "amber", 4, 48],
+  ["silkcrayon", "Silkcrayon", "maintain", "Keep the studio booked and operating cleanly", "Stabilising the new booking and studio operating system", "Complete the client journey from discovery and booking through payment, delivery and return visits, then develop the strongest artists through Silk Records.", "green", 4, 61],
+  ["codex-iso", "Codex ISO", "building", "Launch the first collection of essential texts", "Building the first trustworthy collection", "Establish the complete-edition production pipeline, grow towards 100 then 500 titles, and build the Map of Truth discovery layer.", "amber", 3, 28],
+  ["music", "Music", "maintain", "Create without turning the weekly challenge into a burden", "Reconnecting output with an authentic artist identity", "Finish the strongest existing music, clarify the artistic world and build genuine audience depth before expanding into community products.", "amber", 2, 22],
+  ["personal", "Personal", "active", "Build a stable home, body and financial base", "Building a stable physical, financial and domestic base", "Protect recovery and health, create financial clarity and build routines that support the next creative and business season.", "green", 4, 55],
 ] as const;
 
 async function seedIfEmpty() {
@@ -16,7 +16,7 @@ async function seedIfEmpty() {
   const existing = await db.select({ id: projects.id }).from(projects).limit(1);
   if (existing.length) return;
   const now = new Date();
-  await db.insert(projects).values(initialProjects.map(([id, name, status, outcome, health, priority, progress]) => ({ id, name, status, outcome, health, priority, progress, lastTouched: now })));
+  await db.insert(projects).values(initialProjects.map(([id, name, status, outcome, currentPhase, roadmap, health, priority, progress]) => ({ id, name, status, outcome, currentPhase, roadmap, health, priority, progress, lastTouched: now })));
 }
 
 export async function GET() {
@@ -32,7 +32,7 @@ export async function GET() {
   const [projectRows, taskRows, noteRows] = await Promise.all([
     db.select().from(projects).orderBy(desc(projects.priority)),
     db.select().from(tasks).where(ne(tasks.status, "archived")).orderBy(desc(tasks.priority), desc(tasks.id)),
-    db.select().from(notes).orderBy(desc(notes.id)).limit(100),
+    db.select().from(notes).orderBy(desc(notes.id)),
   ]);
   return Response.json({ projects: projectRows, tasks: taskRows, notes: noteRows });
 }
