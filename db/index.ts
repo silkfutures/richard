@@ -5,9 +5,9 @@ import * as schema from "./schema";
 let database: ReturnType<typeof createDb> | null = null;
 
 function createDb() {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = process.env.DATABASE_URL || process.env.STORAGE_DATABASE_URL || process.env.STORAGE_POSTGRES_URL;
   if (!connectionString) {
-    throw new Error("DATABASE_URL is not configured.");
+    throw new Error("No Postgres database URL is configured.");
   }
   return drizzle(neon(connectionString), { schema });
 }

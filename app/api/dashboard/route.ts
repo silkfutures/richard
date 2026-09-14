@@ -73,7 +73,7 @@ function understand(text: string) {
 
 export async function POST(request: Request) {
   await seedIfEmpty();
-  const body = await request.json() as { action?: string; id?: number; title?: string; text?: string; kind?: "task"|"note"; projectId?: string; priority?: number; dueDate?: string | null; plannedFor?: string | null; decision?: string; reviewNote?: string | null; status?: string; completedAt?: string | null };
+  const body = await request.json() as { action?: string; id?: number; title?: string; text?: string; kind?: "task"|"note"; projectId?: string; priority?: number; effort?: number; dueDate?: string | null; plannedFor?: string | null; waitingOn?: string | null; decision?: string; reviewedAt?: string | null; reviewState?: string | null; reviewNote?: string | null; status?: string; createdAt?: string | null; completedAt?: string | null };
   const db = getDb();
   if (body.action === "toggle" && body.id) {
     const [current] = await db.select().from(tasks).where(eq(tasks.id, body.id)).limit(1);
@@ -140,7 +140,21 @@ export async function POST(request: Request) {
     return Response.json({ kind: "task", item: task, projectId: result.projectId, reason: result.reason }, { status: 201 });
   }
   if (!body.title?.trim() || !body.projectId) return Response.json({ error: "Task and project are required" }, { status: 400 });
-  const [task] = await db.insert(tasks).values({ title: body.title.trim(), projectId: body.projectId, priority: body.priority ?? 3, effort: 2, dueDate: body.dueDate || null, plannedFor: body.plannedFor || null, createdAt: new Date() }).returning();
+  const [task] = await db.insert(tasks).values({
+    title: body.title.trim(),
+    projectId: body.projectId,
+    status: body.status || "open",
+    priority: body.priority ?? 3,
+    effort: body.effort ?? 2,
+    dueDate: body.dueDate || null,
+    plannedFor: body.plannedFor || null,
+    waitingOn: body.waitingOn || null,
+    reviewedAt: body.reviewedAt ? new Date(body.reviewedAt) : null,
+    reviewState: body.reviewState || null,
+    reviewNote: body.reviewNote || null,
+    createdAt: body.createdAt ? new Date(body.createdAt) : new Date(),
+    completedAt: body.completedAt ? new Date(body.completedAt) : null,
+  }).returning();
   await db.update(projects).set({ lastTouched: new Date() }).where(eq(projects.id, body.projectId));
   return Response.json({ task }, { status: 201 });
 }
